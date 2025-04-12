@@ -10,14 +10,14 @@ import sqlalchemy
 
 QUERY_TABLES = dict(
     postgresql="""
-        SELECT c.table_schema, c.table_name, v.table_name IS NOT NULL AS is_view, c.column_name, c.udt_name
+        SELECT c.table_schema, c.table_name, v.table_name IS NOT NULL AS is_view, c.column_name, c.udt_name, is_nullable = 'YES' as is_nullable
           FROM information_schema.columns c
      LEFT JOIN information_schema.views v ON c.table_schema = v.table_schema AND c.table_name = v.table_name
          WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog')
       ORDER BY c.table_schema, c.table_name, c.ordinal_position;
     """,
     mysql="""
-         SELECT c.table_schema, c.table_name, c.column_name, c.data_type, v.table_name IS NOT NULL AS is_view
+         SELECT c.table_schema, c.table_name, c.column_name, c.data_type, v.table_name IS NOT NULL AS is_view, c.is_nullable
            FROM information_schema.columns c
       LEFT JOIN information_schema.views v ON c.table_schema = v.table_schema AND c.table_name = v.table_name
           WHERE c.table_schema NOT IN ('information_schema', 'pg_catalog')
@@ -52,7 +52,6 @@ QUERY_FKS = dict(
 )
 
 TEMPLATE = jinja2.Template("""
-<?xml version="1.0" encoding="UTF-8"?>
 {% set colheight = 26 %}
 {% set colwidth = 200 %}
 {% set max_table_height = colheight * (1 + max_columns) %}
@@ -61,7 +60,7 @@ TEMPLATE = jinja2.Template("""
 {% set table_style =  'swimlane;childLayout=stackLayout;horizontal=1;horizontalStack=0;fillColor=#dae8fc;swimlaneFillColor=#ffffff;strokeColor=#6c8ebf;align=center;fontSize=14;rounded=1;startSize={};'.format(colheight) %}
 {% set view_style =   'swimlane;childLayout=stackLayout;horizontal=1;horizontalStack=0;fillColor=#ffe6cc;swimlaneFillColor=#ffffff;strokeColor=#d79b00;align=center;fontSize=14;rounded=1;startSize={};'.format(colheight) %}
 {% set column_style = 'text;strokeColor=none;fillColor=none;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;' %}
-{% set fk_style =     'edgeStyle=entityRelationEdgeStyle;fontSize=12;html=1;endArrow=none;startArrow=none;' %}
+{% set fk_style =     'edgeStyle=entityRelationEdgeStyle;fontSize=12;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;' %}
 
 <mxfile host="www.draw.io" version="12.2.0" type="device" pages="1">
   <diagram id="W1jUUYN19i4ggJYnhAQF" name="Page-1">
@@ -88,7 +87,7 @@ TEMPLATE = jinja2.Template("""
             {% for col in table.columns %}
                 <mxCell
                   id="{{col.qualified_name}}"
-                  value="{{col.name}} ({{col.dtype}})"
+                  value="{{col.name}}{% if col.is_nullable %}?{% endif %} ({{col.dtype}})"
                   style="{{column_style}}"
                   vertex="1"
                   parent="{{table.qualified_name}}"
@@ -137,9 +136,10 @@ class Table:
 
 
 class Column:
-    def __init__(self, table, name, dtype):
+    def __init__(self, table, name, dtype, is_nullable=False):
         self.name = name
         self.dtype = dtype
+        self.is_nullable = is_nullable
         self.qualified_name = "{}.{}".format(table.qualified_name, name)
 
     def __repr__(self):
@@ -170,17 +170,19 @@ class ForeignKey:
 
 def load_tables(con):
     tables = {}
-    r = con.execute(QUERY_TABLES[con.dialect.name])
-    for row in r:
-        t = Table(row[0], row[1], row[2])
-        t = tables.setdefault(t.qualified_name, t)
-        t.columns.append(Column(t, row[3], row[4]))
+    with con.connect() as connection:
+        r = connection.execute(sqlalchemy.text(QUERY_TABLES[con.dialect.name]))
+        for row in r:
+            t = Table(row[0], row[1], row[2])
+            t = tables.setdefault(t.qualified_name, t)
+            t.columns.append(Column(t, row[3], row[4], row[5]))
     return tables
 
 
 def load_foreign_keys(con, tables):
-    r = con.execute(QUERY_FKS[con.dialect.name])
-    return [ForeignKey(*row) for row in r.fetchall()]
+    with con.connect() as connection:
+        r = connection.execute(sqlalchemy.text(QUERY_FKS[con.dialect.name]))
+        return [ForeignKey(*row) for row in r.fetchall()]
 
 
 def apply_filter(tables, fks, schema, exclude_schema, table_filter, exclude_table_filter):
@@ -328,7 +330,7 @@ def main():
         positions = optimize_table_positions(tables, fks)
 
     xml = TEMPLATE.render(tables=tables.values(), fks=fks, len=len, positions=positions, max_columns=max(len(t.columns) for t in tables.values()))
-    args.ofile.write(xml)
+    args.ofile.write(xml.strip())
 
 if __name__ == '__main__':
     main()
