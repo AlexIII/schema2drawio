@@ -60,7 +60,7 @@ TEMPLATE = jinja2.Template("""
 {% set table_style =  'swimlane;childLayout=stackLayout;horizontal=1;horizontalStack=0;fillColor=#dae8fc;swimlaneFillColor=#ffffff;strokeColor=#6c8ebf;align=center;fontSize=14;rounded=1;startSize={};'.format(colheight) %}
 {% set view_style =   'swimlane;childLayout=stackLayout;horizontal=1;horizontalStack=0;fillColor=#ffe6cc;swimlaneFillColor=#ffffff;strokeColor=#d79b00;align=center;fontSize=14;rounded=1;startSize={};'.format(colheight) %}
 {% set column_style = 'text;strokeColor=none;fillColor=none;spacingLeft=4;spacingRight=4;overflow=hidden;rotatable=0;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=12;' %}
-{% set fk_style =     'edgeStyle=entityRelationEdgeStyle;fontSize=12;html=1;endArrow=ERmany;startArrow=ERone;startFill=0;endFill=0;' %}
+{% set fk_style =     'edgeStyle=entityRelationEdgeStyle;fontSize=12;html=1;endArrow=ERone;startArrow=ERmany;startFill=0;endFill=0;' %}
 
 <mxfile host="www.draw.io" version="12.2.0" type="device" pages="1">
   <diagram id="W1jUUYN19i4ggJYnhAQF" name="Page-1">
